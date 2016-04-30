@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 #
 # Code for web-scraping the Munich film listings from artechok.de
 
@@ -11,6 +12,7 @@
 #
 # Really speculative
 # [ ] Option to include German-language films
+#
 # [ ] Create HTML version with links to IMDB pages on films
 #
 
@@ -32,15 +34,15 @@ parserName = "html.parser"
 
 
 artechokURL = "http://www.artechock.de/film/muenchen/oton.htm"
-textVersion = "/Users/erwin/Desktop/artechok_originalton.html"
+
+testTextVersion = "/Users/erwin/Desktop/artechok_originalton.html"
 
 GERMAN_DAILY = "tgl."
-GERMAN_EXCEPT = "außer"
+GERMAN_EXCEPT = u'außer'
 DAYS_TO_ENGLISH = {"So.": "Sun", "Mo.": "M", "Di.": "Tu", "Mi.": "W", "Do.": "Th",
 					"Fr.": "F", "Sa.": "Sat"}
 
-tagen = ["So.", "Mo.", "Di.", "Mi.", "Do.", "Sa."]
-dayDict_template = {"So.": [], "Mo.": [], "Di.": [], "Mi.": [], "Do.": [], "Sa.": []}
+TAGEN = ["So.", "Mo.", "Di.", "Mi.", "Do.", "Sa."]
 
 
 # EXAMPLES OF THEATER TIME LISTINGS:
@@ -64,8 +66,8 @@ dayDict_template = {"So.": [], "Mo.": [], "Di.": [], "Mi.": [], "Do.": [], "Sa."
 
 
 def TranslateDays( string ):
-	for tag in tagen:
-		string = string.replace(tag, DAYS_TO_ENGLISH[tag])
+	for Tag in TAGEN:
+		string = string.replace(Tag, DAYS_TO_ENGLISH[Tag])
 	return string
 
 def TranslateTimesSimple( theaterTime ):
@@ -73,12 +75,12 @@ def TranslateTimesSimple( theaterTime ):
 	in English.
 	"""
 	showtimes = theaterTime[1]
-	# strip off extra stuff
+	# strip off extra stuff (some lines have extra spaces and \n)
 	showtimesClean = showtimes.splitlines()[0].rstrip()
 	showtimesClean.lstrip()
 	# translate to English
 	showtimesClean = showtimesClean.replace("tgl.", "daily")
-	showtimesClean = showtimesClean.replace("außer", "except")
+	showtimesClean = showtimesClean.replace(u"außer", "except")
 	showtimesClean = showtimesClean.replace("auch", "also")
 	showtimesClean = TranslateDays(showtimesClean)
 	return showtimesClean
@@ -139,11 +141,11 @@ def GetTheatersAndTimes( filmSoup ):
 	
 
 
-sofar = """
+working_notes = """
 
 # load text-file into BBEdit, convert to UTF-8, save
 
-txtv = open(textVersion).read()
+txtv = open(testTextVersion).read()
 soup = BeautifulSoup(txtv)
 
 # extract the table with movie listings (should be only one):
@@ -199,6 +201,15 @@ outf.close()
 
 
 def GetAndProcessFilmListings( input, outputFname ):
+	"""
+	Reads HTML produced by artechok.de and saves cleaned-up text file listing
+	just those movies labeled as "(OF)", "(OmU)", or "(OmeU)".
+	
+		input = "url" to specify retrieving the web page from artechok.de
+			= path-to-filename to specify reading a saved HTML file
+		
+		outputFname = filename to save results in
+	"""
 	
 	if input == "url":
 		print("Fetching current web page from artechok.de ...")
@@ -221,7 +232,7 @@ def GetAndProcessFilmListings( input, outputFname ):
 	filmChunks = ['<tr class="start"' + p for p in pieces[1:]]
 
 	filmDict = OrderedDict()
-	titlesEnglish = []
+	titlesNonGerman = []
 	for filmChunk in filmChunks:
 		newSoup = BeautifulSoup(filmChunk, parserName)
 		startBlob = newSoup.find_all("tr", {"class": "start"})[0]
@@ -240,11 +251,11 @@ def GetAndProcessFilmListings( input, outputFname ):
 			langType = "German"
 		if langType in ["OF", "OmU", "OmeU"]:
 			titleText = filmTitle + " [" + langType + "]"
-			titlesEnglish.append(titleText)
+			titlesNonGerman.append(titleText)
 			filmDict[titleText] = newSoup
 
 	outf = open(outputFname, 'w')
-	for title in titlesEnglish:
+	for title in titlesNonGerman:
 		theaterTimeList = GetTheatersAndTimes(filmDict[title])
 		for i in range(len(theaterTimeList)):
 			if i == 0:
@@ -268,15 +279,8 @@ def main(argv=None):
 					  default=None, help="name for output text file")
 	parser.add_option("--input", type="str", dest="inputFilename",
 					  default=None, help="read local file (no web retrieval)")
-# 	parser.add_option("-t", "--turnon", action="store_true", dest="turnon",
-# 					  default=False, help="set this option to True")
-# 	parser.add_option("--dx", type="float", dest="delta_x", default=0.0,
-# 						help="floating-point value")
-# 	parser.add_option("--xmin", type="int", dest="x_min", default=-1,
-# 						help="integer value")
 	
 	(options, args) = parser.parse_args(argv)
-
 	# args[0] = name program was called with
 	# args[1] = first actual argument, etc.
 	
@@ -290,6 +294,7 @@ def main(argv=None):
 		input = options.inputFilename
 	
 	GetAndProcessFilmListings(input, outputFname)
+
 
 if __name__ == '__main__':
 	
