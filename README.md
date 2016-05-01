@@ -13,7 +13,7 @@ run under Python 2 as well).
 In addition, the following external packages/modules are required:
 
 - Beautiful Soup v4.x ("pip install beautifulsoup4")
-- requests ("pip install requests")
+- requests v2.x ("pip install requests")
 
 
 ## License
