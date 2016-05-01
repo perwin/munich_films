@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Code for web-scraping the Munich film listings from artechok.de
+# Code for web-scraping the Munich film listings from www.artechock.de
 #
 # Requirements:
 #    Python 3.x
@@ -14,6 +14,8 @@
 #
 # [ ] Merge 3D and non-3D versions of same film?
 #
+# [ ] Add current date (default) output filename from artechock.de site?
+#
 #
 # Really speculative
 # [X] Option to include German-language films
@@ -23,7 +25,7 @@
 
 from __future__ import print_function
 
-import sys, optparse, copy
+import sys, optparse, copy, time
 from collections import OrderedDict
 
 import requests
@@ -38,9 +40,9 @@ parserName = "html.parser"
 # 	parserName = "html.parser"
 
 
-artechokURL = "http://www.artechock.de/film/muenchen/oton.htm"
+artechockURL = "http://www.artechock.de/film/muenchen/oton.htm"
 
-testTextVersion = "/Users/erwin/Desktop/artechok_originalton.html"
+testTextVersion = "/Users/erwin/Desktop/artechock_originalton.html"
 
 GERMAN_DAILY = "tgl."
 GERMAN_EXCEPT = u'außer'
@@ -207,20 +209,20 @@ outf.close()
 
 def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 	"""
-	Reads HTML produced by artechok.de and saves cleaned-up text file listing
+	Reads HTML produced by artechock.de and saves cleaned-up text file listing
 	just those movies labeled as "(OF)", "(OmU)", or "(OmeU)".
 	
-		input = "url" to specify retrieving the web page from artechok.de
+		input = "url" to specify retrieving the web page from artechock.de
 			= path-to-filename to specify reading a saved HTML file
 		
 		outputFname = filename to save results in
 	"""
 	
 	if input == "url":
-		print("Fetching current web page from artechok.de ...")
+		print("Fetching current web page from artechock.de ...")
 		# not much point in trying to handle the exception, since sometimes
 		# a whole bunch are generated
-		res = requests.get(artechokURL)
+		res = requests.get(artechockURL)
 		res.raise_for_status()
 		inputText = res.text
 	else:
@@ -294,7 +296,7 @@ def main(argv=None):
 	# args[1] = first actual argument, etc.
 	
 	if options.outputFilename is None:
-		outputFname = "currentfilms_%s.txt"
+		outputFname = "currentfilms_%s.txt" % (time.strftime("%d.%m.%Y"))
 	else:
 		outputFname = options.outputFilename
 	if options.inputFilename is None:
