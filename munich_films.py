@@ -2,6 +2,11 @@
 # -*- coding: utf-8 -*-
 #
 # Code for web-scraping the Munich film listings from artechok.de
+#
+# Requirements:
+#    Python 3.x
+#    requests 2.x ("pip install requests")
+#    BeautifulSoup 4.x ("pip install beautifulsoup4")
 
 # TODO
 #
@@ -11,7 +16,7 @@
 #
 #
 # Really speculative
-# [ ] Option to include German-language films
+# [X] Option to include German-language films
 #
 # [ ] Create HTML version with links to IMDB pages on films
 #
@@ -200,7 +205,7 @@ outf.close()
 """
 
 
-def GetAndProcessFilmListings( input, outputFname ):
+def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 	"""
 	Reads HTML produced by artechok.de and saves cleaned-up text file listing
 	just those movies labeled as "(OF)", "(OmU)", or "(OmeU)".
@@ -213,6 +218,8 @@ def GetAndProcessFilmListings( input, outputFname ):
 	
 	if input == "url":
 		print("Fetching current web page from artechok.de ...")
+		# not much point in trying to handle the exception, since sometimes
+		# a whole bunch are generated
 		res = requests.get(artechokURL)
 		res.raise_for_status()
 		inputText = res.text
@@ -249,7 +256,7 @@ def GetAndProcessFilmListings( input, outputFname ):
 			langType = "OmeU"
 		else:
 			langType = "German"
-		if langType in ["OF", "OmU", "OmeU"]:
+		if getGermanFilms or (langType in ["OF", "OmU", "OmeU"]):
 			titleText = filmTitle + " [" + langType + "]"
 			titlesNonGerman.append(titleText)
 			filmDict[titleText] = newSoup
@@ -279,6 +286,8 @@ def main(argv=None):
 					  default=None, help="name for output text file")
 	parser.add_option("--input", type="str", dest="inputFilename",
 					  default=None, help="read local file (no web retrieval)")
+	parser.add_option("--german-films", action="store_true", dest="germanFilms",
+					  default=False, help="extract German-language films, too")
 	
 	(options, args) = parser.parse_args(argv)
 	# args[0] = name program was called with
@@ -293,7 +302,7 @@ def main(argv=None):
 	else:
 		input = options.inputFilename
 	
-	GetAndProcessFilmListings(input, outputFname)
+	GetAndProcessFilmListings(input, outputFname, getGermanFilms=options.germanFilms)
 
 
 if __name__ == '__main__':
