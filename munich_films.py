@@ -145,7 +145,22 @@ def GetTheatersAndTimes( filmSoup ):
 			theatersAndTimes.append((theaterName.strip(), showTimes.strip()))
 
 	return theatersAndTimes
+
+
+def GetScheduleDates( soup ):
+	"""Given a BeautifulSoup object corresponding to the artechock.de web
+	page, extract the start and end dates for the current schedule.
+	"""
 	
+	h2 = soup.find_all("h2")
+	for h2obj in h2:
+		txt = h2obj.getText()
+		if txt.find("Filme im Originalton") > -1:
+			p = txt.split(":")[1]
+			pp = p.split()
+			startDate,endDate = pp[1],pp[4]
+			return startDate + "-" + endDate
+	return None
 
 
 working_notes = """
@@ -207,6 +222,16 @@ outf.close()
 """
 
 
+def GetSoupObjectFromURL( url=artechockURL ):
+	print("Fetching current web page from artechock.de ...")
+	# not much point in trying to handle the exception, since sometimes
+	# a whole bunch are generated
+	res = requests.get(url)
+	res.raise_for_status()
+	inputText = res.text
+
+	return BeautifulSoup(inputText, parserName)
+	
 def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 	"""
 	Reads HTML produced by artechock.de and saves cleaned-up text file listing
@@ -215,19 +240,15 @@ def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 		input = "url" to specify retrieving the web page from artechock.de
 			= path-to-filename to specify reading a saved HTML file
 		
-		outputFname = filename to save results in
+		outputFname = filename to save results in; use 'DEFAULT' to specify
+			the format "currentfiles_<start_date>-<end_data>.txt"
 	"""
 	
 	if input == "url":
-		print("Fetching current web page from artechock.de ...")
-		# not much point in trying to handle the exception, since sometimes
-		# a whole bunch are generated
-		res = requests.get(artechockURL)
-		res.raise_for_status()
-		inputText = res.text
+		soup = GetSoupObjectFromURL(artechockURL)
 	else:
 		inputText = open(input).read()
-	soup = BeautifulSoup(inputText, parserName)
+		soup = BeautifulSoup(inputText, parserName)
 
 	# extract the table with movie listings (should be only one of these):
 	listingsTable = soup.find_all("table", {"class": "linien prog film"})[0]
@@ -263,6 +284,13 @@ def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 			titlesNonGerman.append(titleText)
 			filmDict[titleText] = newSoup
 
+	if outputFname == "DEFAULT":
+		scheduleDates = GetScheduleDates(soup)
+		if scheduleDates is None:
+			print("Unable to extract schedule dates from HTML!")
+			outputFname = "currentfilms.txt"
+		else:
+			outputFname = "currentfilms_{0}.txt".format(scheduleDates)
 	outf = open(outputFname, 'w')
 	for title in titlesNonGerman:
 		theaterTimeList = GetTheatersAndTimes(filmDict[title])
@@ -296,7 +324,7 @@ def main(argv=None):
 	# args[1] = first actual argument, etc.
 	
 	if options.outputFilename is None:
-		outputFname = "currentfilms_%s.txt" % (time.strftime("%d.%m.%Y"))
+		outputFname = "DEFAULT"
 	else:
 		outputFname = options.outputFilename
 	if options.inputFilename is None:
