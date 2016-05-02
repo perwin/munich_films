@@ -12,9 +12,11 @@
 #
 # [ ] Create simpler film-time listings
 #
+# [ ] Generate day-by-dat listings
+#
 # [ ] Merge 3D and non-3D versions of same film?
 #
-# [ ] Add current date (default) output filename from artechock.de site?
+# [X] Add current date (default) output filename from artechock.de site?
 #
 #
 # Really speculative
@@ -78,8 +80,8 @@ def TranslateDays( string ):
 	return string
 
 def TranslateTimesSimple( theaterTime ):
-	"""Given a tuple of(theaterName, movie showtimes) in German, returns movie showtimes
-	in English.
+	"""Given a tuple of(theaterName, movie showtimes) in German, returns 
+	a string with the movie showtimes in English.
 	"""
 	showtimes = theaterTime[1]
 	# strip off extra stuff (some lines have extra spaces and \n)
@@ -105,6 +107,8 @@ def GetTitle( text ):
 def GetTheater( soup ):
 	"""Given a BeautifulSoup object corresponding to a table row containing
 	theater name and showtimes, extract the theater name.
+	
+	Used in GetTheatersAndTimes.
 	"""
 	# safest thing is to look for "link" class within "mid b" column
 	midCol = soup.find("td", {"class": "mid b"})
@@ -114,6 +118,8 @@ def GetTheater( soup ):
 def GetShowTimes( soup ):
 	"""Given a BeautifulSoup object corresponding to a table row containing
 	theater name and showtimes, extract the showtimes.
+	
+	Used in GetTheatersAndTimes.
 	"""
 	timesBlob = soup.find_all("td", {"class": "right"})[0]
 	# get rid of Unicode non-breaking spaces
@@ -121,22 +127,26 @@ def GetShowTimes( soup ):
 	showTimes = showTimes.replace(u'\xa0', u' ')
 	return showTimes
 	
-def GetTheatersAndTimes( filmSoup ):
+def GetTheatersAndTimes( singleFilmSoup ):
 	"""Given a BeautifulSoup object corresponding to the set of table rows
 	for a given film, extract the theater names and corresponding showtimes.
 	
 	Returns a list of tuples:
 		[(theater1, showtimes1), (theater2, showtimes2), ...]
+	
+	Sample output:
+		[('Museum Lichtspiele',
+		  'So. 10:30\n    \n     (\n     \n      artechock-Kritik\n     \n     )')]
 	"""
 	# all films have at least a "start" table row ('class="start"')
-	startStuff = filmSoup.find_all("tr", {"class": "start"})[0]
+	startStuff = singleFilmSoup.find_all("tr", {"class": "start"})[0]
 	theaterName = GetTheater(startStuff)
 	showTimes = GetShowTimes(startStuff)
 	theatersAndTimes = [(theaterName.strip(), showTimes.strip())]
 	
 	# some films (those showing at more than one theater!) have extra
 	# table rows with 'class="follow"', one for each extra theater
-	otherStuff = filmSoup.find_all("tr", {"class": "follow"})
+	otherStuff = singleFilmSoup.find_all("tr", {"class": "follow"})
 	if len(otherStuff) > 0:
 		# more theaters!
 		for nextSoup in otherStuff:
@@ -231,24 +241,9 @@ def GetSoupObjectFromURL( url=artechockURL ):
 	inputText = res.text
 
 	return BeautifulSoup(inputText, parserName)
-	
-def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
-	"""
-	Reads HTML produced by artechock.de and saves cleaned-up text file listing
-	just those movies labeled as "(OF)", "(OmU)", or "(OmeU)".
-	
-		input = "url" to specify retrieving the web page from artechock.de
-			= path-to-filename to specify reading a saved HTML file
-		
-		outputFname = filename to save results in; use 'DEFAULT' to specify
-			the format "currentfiles_<start_date>-<end_data>.txt"
-	"""
-	
-	if input == "url":
-		soup = GetSoupObjectFromURL(artechockURL)
-	else:
-		inputText = open(input).read()
-		soup = BeautifulSoup(inputText, parserName)
+
+
+def GetFilmDict( soup, getGermanFilms=False  ):
 
 	# extract the table with movie listings (should be only one of these):
 	listingsTable = soup.find_all("table", {"class": "linien prog film"})[0]
@@ -284,6 +279,51 @@ def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 			titlesNonGerman.append(titleText)
 			filmDict[titleText] = newSoup
 
+	return filmDict, titlesNonGerman
+
+
+# [ ] TODO: Need to set up some unit tests for this, containing a list of various
+# different time lists, so we can get all the weird variants ("tgl. xx, yy (ausser dd)";
+# "tgl. xx, auch yy dd", etc.)
+def GetTimesForDay( filmDict, title, day ):
+	"""
+	UNFINISHED!
+	Returns a list of "theater: times" strings for the film specified by title,
+	*if* the times include the specified day.
+	
+	Sample output:
+		["Museum Lichtspiele: 10:30", "Werkstattkino: 18:30, 20:00"]
+	"""
+	theaterTimeList = GetTheatersAndTimes(filmDict[title])
+	for i in range(len(theaterTimeList)):
+		theaterTime = theaterTimeList[i]
+		#line += "\t%s: %s" % (theaterTime[0], TranslateTimesSimple(theaterTime))
+
+	simpleTimes = TranslateTimesSimple(theaterTimeList)
+	return simpleTimes
+	
+				
+
+def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
+	"""
+	Reads HTML produced by artechock.de and saves cleaned-up text file listing
+	just those movies labeled as "(OF)", "(OmU)", or "(OmeU)".
+	
+		input = "url" to specify retrieving the web page from artechock.de
+			= path-to-filename to specify reading a saved HTML file
+		
+		outputFname = filename to save results in; use 'DEFAULT' to specify
+			the format "currentfiles_<start_date>-<end_data>.txt"
+	"""
+	
+	if input == "url":
+		soup = GetSoupObjectFromURL(artechockURL)
+	else:
+		inputText = open(input).read()
+		soup = BeautifulSoup(inputText, parserName)
+
+	filmDict, titlesNonGerman = GetFilmDict(soup, getGermanFilms)
+	
 	if outputFname == "DEFAULT":
 		scheduleDates = GetScheduleDates(soup)
 		if scheduleDates is None:
