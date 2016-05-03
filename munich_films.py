@@ -74,6 +74,7 @@ TAGEN = ["So.", "Mo.", "Di.", "Mi.", "Do.", "Sa."]
 # day specifications: single | single/single | single/single/single | single-single
 
 
+# KEEP
 def TranslateDays( string ):
 	for Tag in TAGEN:
 		string = string.replace(Tag, DAYS_TO_ENGLISH[Tag])
@@ -95,6 +96,7 @@ def TranslateTimesSimple( theaterTime ):
 	return showtimesClean
 	
 	
+# KEEP
 def GetTitle( text ):
 	"""Given a bit of text which has a form like this:
 		'\n\n      Film Title\n     \n     (OmU)\n    '
@@ -157,6 +159,7 @@ def GetTheatersAndTimes( singleFilmSoup ):
 	return theatersAndTimes
 
 
+# KEEP
 def GetScheduleDates( soup ):
 	"""Given a BeautifulSoup object corresponding to the artechock.de web
 	page, extract the start and end dates for the current schedule.
@@ -173,65 +176,9 @@ def GetScheduleDates( soup ):
 	return None
 
 
-working_notes = """
-
-# load text-file into BBEdit, convert to UTF-8, save
-
-txtv = open(testTextVersion).read()
-soup = BeautifulSoup(txtv)
-
-# extract the table with movie listings (should be only one):
-listingsTable = soup.find_all("table", {"class": "linien prog film"})[0]
-txtVersion = listingsTable.prettify()
-# strip off the final "</table>":
-txtVersion = txtVersion.replace("</table>", "")
-# split it up into chunks starting with '<tr class="start"', then paste that
-# text back onto the beginning of each chunk (skip first chunk, since it's just
-# the start of the table
-z = txtVersion.split('<tr class="start"')
-filmChunks = ['<tr class="start"' + zp for zp in z[1:]]
-
-filmDict = OrderedDict()
-titlesEnglish = []
-for filmChunk in filmChunks:
-	newSoup = BeautifulSoup(filmChunk, "html.parser")
-	startBlob = newSoup.find_all("tr", {"class": "start"})[0]
-	titleText = startBlob.select("strong")[0].getText()
-	pp = titleText.splitlines()
-	filmTitle = GetTitle(titleText)
-	if titleText.find("(OF)") > -1:
-		langType = "OF"
-	elif titleText.find("(OmU)") > -1:
-		langType = "OmU"
-	elif titleText.find("(OmeU)") > -1:
-		langType = "OmeU"
-	else:
-		langType = "German"
-	if langType in ["OF", "OmU", "OmeU"]:
-		titleText = filmTitle + " [" + langType + "]"
-		titlesEnglish.append(titleText)
-		filmDict[titleText] = newSoup
 
 
-outf = open(fdesk+"test_films.txt", 'w')
-for title in titlesEnglish:
-	theaterTimeList = GetTheatersAndTimes(filmDict[title])
-	firstLine = title
-	for i in range(len(theaterTimeList)):
-		theaterTime = theaterTimeList[0]
-		line = "%s: %s" % (theaterTime[0], TranslateTimesSimple(theaterTime))
-		if i == 0:
-			line = title + ": " + line
-		else:
-			line = "\t\t" + line
-		outf.write(line + "\n")
-	outf.write("\n")
-outf.close()
-
-
-"""
-
-
+# KEEP
 def GetSoupObjectFromURL( url=artechockURL ):
 	print("Fetching current web page from artechock.de ...")
 	# not much point in trying to handle the exception, since sometimes
@@ -243,8 +190,14 @@ def GetSoupObjectFromURL( url=artechockURL ):
 	return BeautifulSoup(inputText, parserName)
 
 
-def GetFilmDict( soup, getGermanFilms=False  ):
-
+# KEEP
+def GetFilmSoupDict( soup, getGermanFilms=False  ):
+	"""
+	Given a BeautifulSoup object corresponding to the artechock.de web page,
+	this function returns a dictionary mapping film names to corresponding
+	BeautifulSoup objects (i.e., from the subset of the web page dealing with
+	an individual film).
+	"""
 	# extract the table with movie listings (should be only one of these):
 	listingsTable = soup.find_all("table", {"class": "linien prog film"})[0]
 	txtVersion = listingsTable.prettify()
@@ -257,7 +210,7 @@ def GetFilmDict( soup, getGermanFilms=False  ):
 	filmChunks = ['<tr class="start"' + p for p in pieces[1:]]
 
 	filmDict = OrderedDict()
-	titlesNonGerman = []
+	filmTitles = []
 	for filmChunk in filmChunks:
 		newSoup = BeautifulSoup(filmChunk, parserName)
 		startBlob = newSoup.find_all("tr", {"class": "start"})[0]
@@ -276,16 +229,19 @@ def GetFilmDict( soup, getGermanFilms=False  ):
 			langType = "German"
 		if getGermanFilms or (langType in ["OF", "OmU", "OmeU"]):
 			titleText = filmTitle + " [" + langType + "]"
-			titlesNonGerman.append(titleText)
+			filmTitles.append(titleText)
 			filmDict[titleText] = newSoup
 
-	return filmDict, titlesNonGerman
+	return filmDict, filmTitles
 
 
-# [ ] TODO: Need to set up some unit tests for this, containing a list of various
-# different time lists, so we can get all the weird variants ("tgl. xx, yy (ausser dd)";
-# "tgl. xx, auch yy dd", etc.)
-def GetTimesForDay( filmDict, title, day ):
+# [ ] POSSIBLE NEW APPROACH:
+# Filter filmTextDict once for each day --> 7 reduced filmTextDict instances, each
+# one containing only those theater+showtimes which apply to the day in question.
+# Then, for output, select the reduced dict for the requested day; only print the
+# entries with non-null showtimes.
+
+def GetTimesForOneDay( timesList, day ):
 	"""
 	UNFINISHED!
 	Returns a list of "theater: times" strings for the film specified by title,
@@ -294,16 +250,52 @@ def GetTimesForDay( filmDict, title, day ):
 	Sample output:
 		["Museum Lichtspiele: 10:30", "Werkstattkino: 18:30, 20:00"]
 	"""
-	theaterTimeList = GetTheatersAndTimes(filmDict[title])
-	for i in range(len(theaterTimeList)):
-		theaterTime = theaterTimeList[i]
-		#line += "\t%s: %s" % (theaterTime[0], TranslateTimesSimple(theaterTime))
-
-	simpleTimes = TranslateTimesSimple(theaterTimeList)
-	return simpleTimes
+	nTheaters = len(timesList)
+	timesForThisDay = []
+	for i in range(nTheaters):
+		showtimes = timesList[i]
+		theaterName = showtimes.split(":")[0]
+		# extract just the showtimes
+		timesPart = showtimes.split(theaterName + ":")[1]
+		# get rid of any trailing parenthetical stuff [TODO: look for "(except" first!]
+		timesPart = timesPart.split("(")[0]
+		if timesPart.find("daily") > 0:
+			timesPart = timesPart.lstrip("daily ")
+			timesForThisDay.append(theaterName + ": " + timesPart)
+		else:
+			times = timesPart.split(";")
+			for showtimeOneDay in times:
+				if showtimeOneDay.find(day) > -1:
+					timesForThisDay.append(theaterName + ":" + showtimeOneDay)
+			
+	return timesForThisDay
 	
 				
 
+# KEEP
+def MakeFilmTextDict( filmSoupDict, titles ):
+	"""
+	Given a dict mapping film names to Beautiful Soup objects derived from the
+	HTML for individual films (i.e., output of GetFilmSoupDict), this function
+	returns a dict mapping film names to output-suitable dicts which map
+	names of theaters to strings of corresponding showtimes (in English). E.g.,
+	
+		filmTextDict['The Boss [OF]'] = {"Mathäser": "Th 19:30",
+										 "Museum Lichtspiele": "daily 23:10"}
+	"""
+	newDict = {}
+	for title in titles:
+		theaterTimeList = GetTheatersAndTimes(filmSoupDict[title])
+		timesList = []
+		for i in range(len(theaterTimeList)):
+			theaterTime = theaterTimeList[i]
+			line = "%s: %s" % (theaterTime[0], TranslateTimesSimple(theaterTime))
+			timesList.append(line)
+		newDict[title] = timesList
+	return newDict
+	
+	
+# KEEP
 def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 	"""
 	Reads HTML produced by artechock.de and saves cleaned-up text file listing
@@ -322,7 +314,8 @@ def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 		inputText = open(input).read()
 		soup = BeautifulSoup(inputText, parserName)
 
-	filmDict, titlesNonGerman = GetFilmDict(soup, getGermanFilms)
+	filmSoupDict, filmTitles = GetFilmSoupDict(soup, getGermanFilms)
+	filmTextDict = MakeFilmTextDict(filmSoupDict, filmTitles)
 	
 	if outputFname == "DEFAULT":
 		scheduleDates = GetScheduleDates(soup)
@@ -332,15 +325,14 @@ def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 		else:
 			outputFname = "currentfilms_{0}.txt".format(scheduleDates)
 	outf = open(outputFname, 'w')
-	for title in titlesNonGerman:
-		theaterTimeList = GetTheatersAndTimes(filmDict[title])
-		for i in range(len(theaterTimeList)):
+	for title in filmTitles:
+		timesList = filmTextDict[title]
+		for i in range(len(timesList)):
 			if i == 0:
 				line = title + ":\n"
 			else:
 				line = ""
-			theaterTime = theaterTimeList[i]
-			line += "\t%s: %s" % (theaterTime[0], TranslateTimesSimple(theaterTime))
+			line += "\t%s" % timesList[i]
 			outf.write(line + "\n")
 		outf.write("\n")
 	outf.close()
