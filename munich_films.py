@@ -468,9 +468,9 @@ def main(argv=None):
 
 
 	parser.add_option("-o", "--output", type="str", dest="outputFilename",
-					  default=None, help="name for output text file")
+					  default=None, help="name for output text file [default = \"currentfilms_dd.mm.yyyy-dd.mm.yyy\"]")
 	parser.add_option("--input", type="str", dest="inputFilename",
-					  default=None, help="read local file (no web retrieval)")
+					  default=None, help="read local HTML file instead of web retrieval [for testing purposes]")
 	parser.add_option("--german-films", action="store_true", dest="germanFilms",
 					  default=False, help="extract German-language films, too")
 	

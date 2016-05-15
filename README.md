@@ -3,11 +3,13 @@
 This is a bare-bones Python script which fetches the current "Original
 Version" Munich film schedule from
 [artechock.de](http://www.artechock.de/film/muenchen/film.htm) and saves
-it in simplified text-file form. (By default, only the non-German films are extracted.)
+it in simplified text-file form. (By default, only the non-German films are extracted;
+the command-line option "--german-films" will include German-language films
+as well.)
 
 
 ## Requirements:
-This is meant to be run under Python 3 (with minor fixes could probably
+This is meant to be run under Python 3 (with minor Unicode-related fixes it could probably
 run under Python 2 as well).
 
 In addition, the following external packages/modules are required:
