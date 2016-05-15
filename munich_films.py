@@ -27,7 +27,7 @@
 
 from __future__ import print_function
 
-import sys, optparse, copy, time
+import sys, optparse, copy, time, re
 from collections import OrderedDict
 
 import requests
@@ -72,6 +72,17 @@ TAGEN = ["So.", "Mo.", "Di.", "Mi.", "Do.", "Sa."]
 # 'So. 21:00; Mi. 18:30 (+Vorfilm »Drei Minuten in einem Film von Ozu«)'
 # 
 # day specifications: single | single/single | single/single/single | single-single
+
+
+def IsShowtime( string ):
+	"""Determines whether string has the format xx:xx, where xx = pair
+	of digits.
+	"""
+	s = string.strip()
+	if len(s) == 5 and s[2] == ":" and s[:2].isdigit() and s[3:].isdigit():
+		return True
+	else:
+		return False
 
 
 # KEEP
@@ -241,32 +252,143 @@ def GetFilmSoupDict( soup, getGermanFilms=False  ):
 # Then, for output, select the reduced dict for the requested day; only print the
 # entries with non-null showtimes.
 
+def RemoveDaysFromShowtime( showtimeString ):
+	"""
+	Given a showtime string of the form "M 20:00, 23:00" or "Sat/Sun 20:00", this function
+	removes *all* the days, returning just the time(s).
+	"""
+	s = showtimeString.strip()
+	pp = s.split()
+	dayString = pp[0]
+	return s.lstrip(dayString).strip()
+
+
+dailyPatterns = """
+daily 23:10
+daily 16:40, 19:50, 22:50
+daily 19:00 (Sun 19:30)
+daily 15:00, 17:45, 20:30 (except M)
+daily 16:20 (except Fr.), 18:35
+daily except Tu 22:55
+daily except Sat/Tu 21:30
+daily except W 19:10; Sat/Sun also 15:30; Tu also 13:00
+daily except W 16:10, 22:15; Sun also 11:00
+daily except M 18:30; M 18:00
+daily except Sat/Sun 15:15; Sat/Sun 13:00
+"""
+
+paranthesizedAlsos = """
+daily except W 16:10, 22:15; Sun also 11:00
+daily except W 19:10; Sat/Sun also 15:30; Tu also 13:00
+"""
+
+findParenthesizedText = re.compile("\((?P<text>\D+\s+\S+)\)")
+findParenthesizedExceptDay = re.compile("\(except\s+(?P<days>\S+)\)")
+findAlsoText = re.compile("(?P<days>\D+) also (?P<time>\S+)")
+
+def IsValidDay( showTime, day ):
+	"""Given a showTime string possibly containing "(except <days>)", returns
+	True if day is *not* in the exception list.
+		forms for showTime: "20:00", "16:20 (except Sun)", etc.
+	"""
+	m = findParenthesizedExceptDay.search(showTime)
+	if m is None:
+		return True
+	else:
+		exceptionDays = m.group("days")
+		if day in exceptionDays:
+			return False
+		else:
+			return True
+
+	
+# [ ] Currently being tested
+def ExtractDailyTimes( showtimeBlock, day ):
+	"""Code designed to process the different forms of "daily xxx" showtimes.
+	Given an input "daily xxx" segment of text and a specified day, this
+	function returns the corresponding string of showtimes for that day.
+		Examples:
+			ExtractDailyTimes("daily 16:40, 19:50, 22:50", "<anyday>") --> "16:40, 19:50, 22:50"
+			ExtractDailyTimes("daily 19:00 (Sun 19:30)", "Sun") --> "19:30"
+	"""
+	s = showtimeBlock.lstrip("daily ")
+	# TODO: look for "also" text, save if matches day
+	if s.find("except") < 0:
+		# no "except" text, so things are simpler
+		m = findParenthesizedText.search(s)
+		if m is None:
+			validTimeString = s.split("(")[0].strip()
+		else:
+			# possible alternate time for this day?
+			altTimeText = m.group("text")
+			if altTimeText.find(day) > -1:
+				pp = altTimeText.split()
+				validTimeString = altTimeText.lstrip(pp[0]).strip()
+			else:
+				validTimeString = s.split("(")[0].strip()
+	else:
+		# process "except"
+		pp = s.split()
+		m = findParenthesizedExceptDay.search(s)
+		if m is None:
+			# assume that pattern is "daily except ..."
+			invalidDays = pp[1]
+			if invalidDays.find(day) > -1:
+				validTimeString = None
+			else:
+				validTimeString = s.lstrip(pp[0] + " " + pp[1])
+		else:
+			# OK we have a list of times with "(except <days>)", so at least *some* of the
+			# times are valid for this day
+			validTimes = [ time.split("(")[0].strip() for time in s.split(",") if IsValidDay(time, day) ]
+			if len(validTimes) == 1:
+				validTimeString = validTimes[0]
+			else:
+				validTimeString = ", ".join(validTimes)
+
+	return validTimeString
+			
+		
+
 def GetTimesForOneDay( timesList, day ):
 	"""
-	UNFINISHED!
-	Returns a list of "theater: times" strings for the film specified by title,
-	*if* the times include the specified day.
+	IN PROGRESS!  [currently can't handle really complicated film times]
+	Returns a list of "theater: times" strings for the film specified by the input
+	list of theaters and showtimes, *if* the times include the specified day.
 	
-	Sample output:
-		["Museum Lichtspiele: 10:30", "Werkstattkino: 18:30, 20:00"]
+	Sample input: ['Mathäser: Sun 11:00 (mit Pause)', 'Cinemaxx: Th 19:30; Sun 16:00']
+	Sample output (for case of day = "Sun"): ["Mathäser: 11:00", "Cinemaxx: 16:00"]
 	"""
 	nTheaters = len(timesList)
 	timesForThisDay = []
 	for i in range(nTheaters):
-		showtimes = timesList[i]
-		theaterName = showtimes.split(":")[0]
-		# extract just the showtimes
-		timesPart = showtimes.split(theaterName + ":")[1]
-		# get rid of any trailing parenthetical stuff [TODO: look for "(except" first!]
-		timesPart = timesPart.split("(")[0]
-		if timesPart.find("daily") > 0:
-			timesPart = timesPart.lstrip("daily ")
-			timesForThisDay.append(theaterName + ": " + timesPart)
-		else:
-			times = timesPart.split(";")
-			for showtimeOneDay in times:
-				if showtimeOneDay.find(day) > -1:
-					timesForThisDay.append(theaterName + ":" + showtimeOneDay)
+		theaterTimesString = timesList[i]
+		theaterName = theaterTimesString.split(":")[0]
+		# extract just the actual showtimes (chop off the theater name)
+		timesString = theaterTimesString.split(theaterName + ":")[1]
+		times = timesString.split(";")
+		for showtimeBlock in times:
+			# iterate over "blocks" (text separated by ";")
+			if showtimeBlock.find("daily") > -1:
+				validTimesForThisDay = ExtractDailyTimes(showtimeBlock, day)
+				if validTimesForThisDay is not None:
+					timesForThisDay.append(theaterName + ": " + validTimesForThisDay)
+			else:
+				showtimeBlockTrimmed = showtimeBlock.split("(")[0]
+				if showtimeBlockTrimmed.find(day) > -1:
+					validTimesForThisDay = RemoveDaysFromShowtime(showtimeBlockTrimmed)
+					timesForThisDay.append(theaterName + ": " + validTimesForThisDay)
+		
+# 		timesString = timesString.split("(")[0]
+# 		if timesString.find("daily") > 0:
+# 			timesString = timesString.lstrip("daily ")
+# 			timesForThisDay.append(theaterName + ": " + timesString.strip())
+# 		else:
+# 			times = timesString.split(";")
+# 			for showtimeOneDay in times:
+# 				if showtimeOneDay.find(day) > -1:
+# 					showtimeOneDay = RemoveDaysFromShowtime(showtimeOneDay)
+# 					timesForThisDay.append(theaterName + ": " + showtimeOneDay)
 			
 	return timesForThisDay
 	
@@ -275,13 +397,13 @@ def GetTimesForOneDay( timesList, day ):
 # KEEP
 def MakeFilmTextDict( filmSoupDict, titles ):
 	"""
-	Given a dict mapping film names to Beautiful Soup objects derived from the
-	HTML for individual films (i.e., output of GetFilmSoupDict), this function
-	returns a dict mapping film names to output-suitable dicts which map
-	names of theaters to strings of corresponding showtimes (in English). E.g.,
+	Given a dict mapping film titles to Beautiful Soup objects derived from the
+	HTML for individual films (i.e., output of GetFilmSoupDict) and a list of
+	the film titles, this function returns a dict mapping film names to lists of 
+	theater+showtimes strings. E.g.,
 	
-		filmTextDict['The Boss [OF]'] = {"Mathäser": "Th 19:30",
-										 "Museum Lichtspiele": "daily 23:10"}
+		filmTextDict['The Boss [OF]'] = ['Mathäser: Sun 11:00 (mit Pause)', 
+										'Cinemaxx: Th 19:30; Sun 16:00']
 	"""
 	newDict = {}
 	for title in titles:
@@ -336,6 +458,7 @@ def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 			outf.write(line + "\n")
 		outf.write("\n")
 	outf.close()
+	print("Saved current film schedule in \"{0}\".".format(outputFname))
 
 
 def main(argv=None):
