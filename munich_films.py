@@ -97,8 +97,13 @@ def TranslateTimesSimple( theaterTime ):
 	"""
 	showtimes = theaterTime[1]
 	# strip off extra stuff (some lines have extra spaces and \n)
-	showtimesClean = showtimes.splitlines()[0].rstrip()
-	showtimesClean.lstrip()
+	showtimesClean = showtimes.splitlines()[0]
+	# fix for Wekstattkino entries, which usually end up with "(" at end of line
+	if showtimesClean[-1] == "(":
+		showtimesClean = showtimesClean[:-1]
+	# strip off excess spaces at beginning or end
+	showtimesClean = showtimesClean.rstrip()
+	showtimesClean = showtimesClean.lstrip()
 	# translate to English
 	showtimesClean = showtimesClean.replace("tgl.", "daily")
 	showtimesClean = showtimesClean.replace(u"außer", "except")

@@ -185,6 +185,12 @@ class munich_filmsCheck(unittest.TestCase):
 			result.append(munich_films.ExtractDailyTimes(input, inputDay))
 		self.assertEqual(correct, result)
 	
+	
+	def testTranslateTimesSimple(self):
+		input = ('Werkstattkino', 'Sa. 18:00 (\n   \n    Nacht\xadschatten\n   \n   – Fetisch Film Festival)')
+		correct = "Sat 18:00"
+		result = munich_films.TranslateTimesSimple(input)
+		self.assertEqual(correct, result)
 		
 # 	def testGetTimesForOneDay(self):
 # 		# setup: create input and reference
