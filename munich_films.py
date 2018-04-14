@@ -438,8 +438,9 @@ def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 	if input == "url":
 		soup = GetSoupObjectFromURL(artechockURL)
 	else:
-		inputText = open(input).read()
-		soup = BeautifulSoup(inputText, parserName)
+		with open(input) as f:
+			inputText = f.read()
+			soup = BeautifulSoup(inputText, parserName)
 
 	filmSoupDict, filmTitles = GetFilmSoupDict(soup, getGermanFilms)
 	filmTextDict = MakeFilmTextDict(filmSoupDict, filmTitles)
@@ -451,18 +452,17 @@ def GetAndProcessFilmListings( input, outputFname, getGermanFilms=False ):
 			outputFname = "currentfilms.txt"
 		else:
 			outputFname = "currentfilms_{0}.txt".format(scheduleDates)
-	outf = open(outputFname, 'w')
-	for title in filmTitles:
-		timesList = filmTextDict[title]
-		for i in range(len(timesList)):
-			if i == 0:
-				line = title + ":\n"
-			else:
-				line = ""
-			line += "\t%s" % timesList[i]
-			outf.write(line + "\n")
-		outf.write("\n")
-	outf.close()
+	with open(outputFname, 'w') as outf:
+		for title in filmTitles:
+			timesList = filmTextDict[title]
+			for i in range(len(timesList)):
+				if i == 0:
+					line = title + ":\n"
+				else:
+					line = ""
+				line += "\t%s" % timesList[i]
+				outf.write(line + "\n")
+			outf.write("\n")
 	print("Saved current film schedule in \"{0}\".".format(outputFname))
 
 
