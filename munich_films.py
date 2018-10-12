@@ -119,7 +119,7 @@ def GetTitle( text ):
 	return just the film title.
 	"""
 	pp = text.splitlines()
-	pp2 = [p.strip() for p in pp if len(p.strip()) > 1]
+	pp2 = [p.strip() for p in pp if len(p.strip()) >= 1]
 	return pp2[0]
 
 def GetTheater( soup ):
